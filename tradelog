@@ -1,0 +1,47 @@
+#!/bin/sh
+
+export POSIXLY_CORRECT=yes
+export LC_NUMERIC=en_US.UTF-8
+
+Help()
+{
+  echo "Usage: tradelog [-h|--help]"
+  echo "       tradelog [FILTER ...] [COMMAND] [LOG [LOG2 [...]]"
+  echo
+  echo "COMMAND"
+  echo "  list-tick     prints list of occurring stock symbols (tickers)"
+  echo "  profit        prints total profit from closed positions"
+  echo "  pos           prints list of values of currently held positions sorted in descending order by value"
+  echo "  last-price    prints list of the last known price for each ticker"
+  echo "  hist-ord      prints histogram of the number of transactions according to the ticker"
+  echo "  graph-pos     prints graph of values of held positions according to the ticker"
+  echo
+  echo "FILTER"
+  echo "  -a DATETIME   considered are only values of records after this date (without this date)"
+  echo "                DATETIME is in format YYYY-MM-DD HH:MM:SS"
+  echo
+  echo "  -b DATETIME   considered are only values of records before this date (without this date)"
+  echo "                DATETIME is in format YYYY-MM-DD HH:MM:SS"
+  echo
+  echo "  -t TICKER     considered are only entries corresponding to a given ticker. With multiple occurrences of this "
+  echo "                switch, the set of all listed tickers are taken"
+  echo
+  echo "  -w WIDTH      sets width of graph, specified value sets length of the longest line."
+  echo "                WIDTH must be unsigned integer."
+  echo "                Multiple occurrences of this switch are not allowed, program will end with error"
+  echo
+}
+
+# DATUM A CAS;TICKER;TYP TRANSAKCE;JEDNOTKOVA CENA;MENA;OBJEM;ID <- one line in .csv log file
+
+COMMAND=""
+
+while [ "$#" -gt 0 ]; do
+    case $1 in
+    -h | --help)
+      Help
+      exit 0
+      ;;
+
+    esac
+done
