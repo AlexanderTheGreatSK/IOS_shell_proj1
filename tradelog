@@ -260,6 +260,53 @@ done
       echo "$FINAL" | sort -t ':'
       exit 0
       ;;
+    "hist-ord")
+      echo "$WIDTH"
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v w="$WIDTH" -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+          if (tickets[$2] == "") {
+          tickets[$2]=1
+        } else {
+          tickets[$2]++
+       }
+      };
+
+      END {
+        if (w == -500) {
+          for (key in tickets) {
+          tmp="";
+            for (i=0; i<tickets[key]; i++) {
+              tmp=tmp"#"
+            }
+            printf("%-10s: %s\n",key ,tmp);
+          }
+        } else {
+          max=""
+          for (key in tickets) {
+            if (max == "") {
+              max=tickets[key]
+            }
+
+            if (max < tickets[key]) {
+              max=tickets[key]
+            }
+          }
+
+          oneHash=max/w
+
+          for (key in tickets) {
+            tmpStr=""
+            tmpInt=tickets[key]/oneHash
+              for (i=0; i<int(tmpInt); i++) {
+                tmpStr=tmpStr"#"
+              }
+            printf("%-10s: %s\n", key, tmpStr);
+          }
+
+        }
+        }')
+      echo "$FINAL" | sort -t ':'
+    exit 0
+    ;;
     *)
       echo "$FILTERED_LINES"
       exit 0
