@@ -172,7 +172,7 @@ done
 
             CONTENT=$(cat $LOG_FILES)
             #CONTENT=$(gzcat "$GZ_LOG_FILES")
-
+            #zcat
             echo "$GZ_LOG_FILES"
 
 
@@ -238,10 +238,26 @@ done
 
       END {
         for (key in prices) {
-          printf("%s : %.2f\n",key ,prices[key]);
+          printf("%-10s: %11.2f\n",key ,prices[key]);
         }
       }')
-      echo "$FINAL"
+      echo "$FINAL" | sort -t ':' -k 2,2 -n -r
+      exit 0
+      ;;
+
+    "last-price")
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+
+        tickets[$2] = $4
+
+      };
+
+      END {
+        for (key in tickets) {
+          printf("%-10s: %7.2f\n",key ,tickets[key]);
+        }
+      }')
+      echo "$FINAL" | sort -t ':'
       exit 0
       ;;
     *)
