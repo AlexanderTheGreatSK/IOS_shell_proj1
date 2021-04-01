@@ -32,9 +32,26 @@ Help()
   echo
 }
 
+Command_check() {
+  if [ "$COMMAND" != "" ]; then
+    echo "Error: Too many COMMAND arguments. Allowed is just one. Type ./tradelog -h for more help"
+    exit 1
+  fi
+}
+
 # DATUM A CAS;TICKER;TYP TRANSAKCE;JEDNOTKOVA CENA;MENA;OBJEM;ID <- one line in .csv log file
 
 COMMAND=""
+AFTER_DATE="0000-00-00 00:00:00"
+BEFORE_DATE="9999-99-99 99:99:99"
+WIDTH=-500
+TICKER=""
+TICKER_CNT=0
+FILE_CNT=0
+FILTER=false
+
+LOG_FILES=""
+GZ_LOG_FILES=""
 
 while [ "$#" -gt 0 ]; do
     case $1 in
@@ -42,6 +59,196 @@ while [ "$#" -gt 0 ]; do
       Help
       exit 0
       ;;
+    -a)
+      #AFTER_DATE=$(date -d "$2" '+%Y-%m-%d %H:%M:%S')
+      AFTER_DATE=$2
+      FILTER=true
+      shift
+      shift
+      ;;
+    -b)
+      #BEFORE_DATE=$(date -d "$2" '+%Y-%m-%d %H:%M:%S')
+      BEFORE_DATE=$2
+      FILTER=true
+      shift
+      shift
+      ;;
+    -w)
+      if [ $WIDTH = -500 ]; then
+        if [ "$2" -gt 0 ]; then
+          WIDTH=$2
+          FILTER=true
+        else
+          echo "-w argument must be positive number"
+          exit 1
+        fi
 
+      else
+        echo "Too many -w arguments."
+        exit 1
+
+      fi
+
+      shift
+      shift
+      ;;
+    -t)
+      TICKER="$2 $TICKER"
+      TICKER_CNT=$((TICKER_CNT+1))
+      FILTER=true
+      shift
+      shift
+      ;;
+    list-tick)
+      COMMAND="$1"
+        shift
+        ;;
+    profit)
+      Command_check
+      COMMAND="$1"
+      shift
+      ;;
+    pos)
+      Command_check
+      COMMAND="$1"
+      shift
+      ;;
+    last-price)
+      Command_check
+      COMMAND="$1"
+      shift
+      ;;
+    hist-ord)
+      Command_check
+      COMMAND="$1"
+      shift
+      ;;
+    graph-pos)
+      Command_check
+      COMMAND="$1"
+      shift
+      ;;
+    *)
+      EXTENSION="${1##*.}"
+
+      if [ "$EXTENSION" = "gz" ]; then
+          GZ_LOG_FILES="$1 $GZ_LOG_FILES"
+      elif [ "$EXTENSION" = "log" ]; then
+          LOG_FILES="$1 $LOG_FILES"
+      fi
+      shift
+      ;;
     esac
 done
+
+    if [ "$LOG_FILES" = "" ] && [ "$GZ_LOG_FILES" = "" ]; then
+
+          LOG_FILES="-"
+
+    fi
+
+
+    TICKER=${TICKER%?}
+    LOG_FILES=${LOG_FILES%?}
+    #GZ_LOG_FILES=${GZ_LOG_FILES%?}
+
+
+
+    if [ "$TICKER" != "" ]; then
+
+        while [ $TICKER_CNT != 0 ]; do
+
+            if [ $TICKER_CNT != 1 ]; then
+
+                TMP=$(cut -d ' ' -f $TICKER_CNT "$TICKER")
+
+            else
+                TMP=$TICKER
+            fi
+
+            echo "$TMP"
+
+            echo "$LOG_FILES:"
+
+            CONTENT=$(cat $LOG_FILES)
+            #CONTENT=$(gzcat "$GZ_LOG_FILES")
+
+            echo "$GZ_LOG_FILES"
+
+
+
+            FILTERED_LINES=$(cat $LOG_FILES | awk -F ';' -v t="$TMP" -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'a < $1 && b > $1 && $2 == t')
+
+
+            TICKER_CNT=$((TICKER_CNT-1))
+
+        done
+
+    else
+
+      FILTERED_LINES=$(cat $LOG_FILES | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'a < $1 && b > $1')
+
+    fi
+
+    case "$COMMAND" in
+    "list-tick")
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{print $2}')
+      echo "$FINAL"
+      exit 0
+      ;;
+    "profit")
+
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+      if ($3 == "buy") {
+        sum=sum - $4 * $6
+      } else if ($3 == "sell") {
+        sum=sum + $4 * $6
+      }
+      };
+
+      END {
+        printf("%.2f", sum);
+      }')
+      echo "$FINAL"
+      exit 0
+      ;;
+    "pos")
+
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+
+        if (tickets[$2] == "") {
+          if ($3 == "sell") {
+            tickets[$2] = 0 - $6
+            prices[$2] = tickets[$2] * $4
+          } else if ("buy") {
+            tickets[$2] = 0 + $6
+            prices[$2] = tickets[$2] * $4
+          }
+        } else {
+        if ($3 == "sell") {
+            tickets[$2] = tickets[$2] - $6
+            prices[$2] = tickets[$2] * $4
+          } else if ("buy") {
+            tickets[$2] = tickets[$2] + $6
+            prices[$2] = tickets[$2] * $4
+          }
+        }
+
+      };
+
+      END {
+        for (key in prices) {
+          printf("%s : %.2f\n",key ,prices[key]);
+        }
+      }')
+      echo "$FINAL"
+      exit 0
+      ;;
+    *)
+      echo "$FILTERED_LINES"
+      exit 0
+      ;;
+    esac
+
+
+exit 0
