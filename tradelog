@@ -44,6 +44,7 @@ AFTER_DATE="0000-00-00 00:00:00"
 BEFORE_DATE="9999-99-99 99:99:99"
 WIDTH=-500
 TICKER=""
+LINES=""
 TICKER_CNT=0
 
 while [ "$#" -gt 0 ]; do
@@ -116,11 +117,10 @@ while [ "$#" -gt 0 ]; do
       ;;
     *)
       EXTENSION="${1##*.}"
-      LINES=""
       if [ "$EXTENSION" = "gz" ]; then
-          LINES="$LINES"$(zcat "$1")
+          LINES="$LINES\n"$(zcat "$1")
       elif [ "$EXTENSION" = "log" ]; then
-          LINES="$LINES"$(cat "$1")
+          LINES="$LINES\n"$(cat "$1")
       fi
       shift
       ;;
@@ -144,11 +144,13 @@ done
         };
 
         {
-          for (i=1; i<=cnt; i++) {
-              if (array[i] == $2) {
-                print
-              }
-        }
+          if (a < $1 && b > $1) {
+            for (i=1; i<=cnt; i++) {
+                  if (array[i] == $2) {
+                    print
+                  }
+            }
+          }
         }')
       fi
     else
@@ -157,7 +159,7 @@ done
 
     case "$COMMAND" in
     "list-tick")
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{print $2}' | sort -u)
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' '{print $2}' | sort -u)
       echo "$FINAL"
       exit 0
       ;;
@@ -223,7 +225,7 @@ done
       exit 0
       ;;
     "hist-ord")
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' '{
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v w="$WIDTH" '{
           if (tickets[$2] == "") {
           tickets[$2]=1
         } else {
@@ -328,14 +330,16 @@ done
             }
             tmpInt=prices[key]/oneHash
             tmpInt=sqrt(tmpInt*tmpInt)
-            tmpStr=" "
+            tmpStr=""
             for (i = 0; i<int(tmpInt); i++) {
               tmpStr=tmpStr ch
             }
-            printf("%-10s:%s\n", key, tmpStr)
+            if (tmpStr == "") {
+              printf("%-10s:\n", key, tmpStr)
+            } else {
+              printf("%-10s: %s\n", key, tmpStr)
+            }
           }
-
-
         }
       }')
       echo "$FINAL" | sort -t ':'
