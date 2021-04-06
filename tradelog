@@ -1,5 +1,8 @@
 #!/bin/sh
 
+#Project: IOS project 1
+#Author: Alexander Okrucký (xokruc00)
+
 export POSIXLY_CORRECT=yes
 export LC_NUMERIC=en_US.UTF-8
 
