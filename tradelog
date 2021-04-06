@@ -39,19 +39,12 @@ Command_check() {
   fi
 }
 
-# DATUM A CAS;TICKER;TYP TRANSAKCE;JEDNOTKOVA CENA;MENA;OBJEM;ID <- one line in .csv log file
-
 COMMAND=""
 AFTER_DATE="0000-00-00 00:00:00"
 BEFORE_DATE="9999-99-99 99:99:99"
 WIDTH=-500
 TICKER=""
 TICKER_CNT=0
-FILE_CNT=0
-FILTER=false
-
-LOG_FILES=""
-GZ_LOG_FILES=""
 
 while [ "$#" -gt 0 ]; do
     case $1 in
@@ -60,16 +53,12 @@ while [ "$#" -gt 0 ]; do
       exit 0
       ;;
     -a)
-      #AFTER_DATE=$(date -d "$2" '+%Y-%m-%d %H:%M:%S')
       AFTER_DATE=$2
-      FILTER=true
       shift
       shift
       ;;
     -b)
-      #BEFORE_DATE=$(date -d "$2" '+%Y-%m-%d %H:%M:%S')
       BEFORE_DATE=$2
-      FILTER=true
       shift
       shift
       ;;
@@ -85,20 +74,18 @@ while [ "$#" -gt 0 ]; do
       else
         echo "Too many -w arguments."
         exit 1
-
       fi
-
       shift
       shift
       ;;
     -t)
       TICKER="$2 $TICKER"
       TICKER_CNT=$((TICKER_CNT+1))
-      FILTER=true
       shift
       shift
       ;;
     list-tick)
+      Command_check
       COMMAND="$1"
         shift
         ;;
@@ -129,76 +116,53 @@ while [ "$#" -gt 0 ]; do
       ;;
     *)
       EXTENSION="${1##*.}"
-
+      LINES=""
       if [ "$EXTENSION" = "gz" ]; then
-          GZ_LOG_FILES="$1 $GZ_LOG_FILES"
+          LINES="$LINES"$(zcat "$1")
       elif [ "$EXTENSION" = "log" ]; then
-          LOG_FILES="$1 $LOG_FILES"
+          LINES="$LINES"$(cat "$1")
       fi
       shift
       ;;
     esac
 done
 
-    if [ "$LOG_FILES" = "" ] && [ "$GZ_LOG_FILES" = "" ]; then
-
-          LOG_FILES="-"
-
+    if [ "$LINES" = "" ]; then
+          LINES=$(cat -)
     fi
 
-
     TICKER=${TICKER%?}
-    echo "Tickers:$TICKER:"
-    LOG_FILES=${LOG_FILES%?}
-    #GZ_LOG_FILES=${GZ_LOG_FILES%?}
-
-
+    FILTERED_LINES=""
 
     if [ "$TICKER" != "" ]; then
 
-        while [ $TICKER_CNT != 0 ]; do
+      if [ $TICKER_CNT -eq 1 ]; then
+          FILTERED_LINES=$(echo "$LINES" | awk -F ';' -v t="$TICKER" -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'a < $1 && b > $1 && $2 == t')
+      else
+        FILTERED_LINES=$(echo "$LINES" | awk -F ';' -v t="$TICKER" -v cnt="$TICKER_CNT" -v s=' ' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'BEGIN {
+            split(t, array, s)
+        };
 
-            if [ $TICKER_CNT != 1 ]; then
-
-                TMP=$(cut -d ' ' -f $TICKER_CNT "$TICKER")
-
-            else
-                TMP=$TICKER
-            fi
-
-            echo "$TMP"
-
-            echo "$LOG_FILES:"
-
-            CONTENT=$(cat $LOG_FILES)
-            #CONTENT=$(gzcat "$GZ_LOG_FILES")
-            #zcat
-            echo "$GZ_LOG_FILES"
-
-
-
-            FILTERED_LINES=$(cat $LOG_FILES | awk -F ';' -v t="$TMP" -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'a < $1 && b > $1 && $2 == t')
-
-
-            TICKER_CNT=$((TICKER_CNT-1))
-
-        done
-
+        {
+          for (i=1; i<=cnt; i++) {
+              if (array[i] == $2) {
+                print
+              }
+        }
+        }')
+      fi
     else
-      echo "$LOG_FILES"
-      FILTERED_LINES=$(cat $LOG_FILES | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'a < $1 && b > $1')
-
+      FILTERED_LINES=$(echo "$LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" 'a < $1 && b > $1')
     fi
 
     case "$COMMAND" in
     "list-tick")
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{print $2}')
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{print $2}' | sort -u)
       echo "$FINAL"
       exit 0
       ;;
     "profit")
-
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' '{
       if ($3 == "buy") {
         sum=sum - $4 * $6
       } else if ($3 == "sell") {
@@ -214,7 +178,7 @@ done
       ;;
     "pos")
 
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' '{
 
         if (tickets[$2] == "") {
           if ($3 == "sell") {
@@ -246,7 +210,7 @@ done
       ;;
 
     "last-price")
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' '{
         tickets[$2] = $4
       };
 
@@ -259,7 +223,7 @@ done
       exit 0
       ;;
     "hist-ord")
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v w="$WIDTH" -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' '{
           if (tickets[$2] == "") {
           tickets[$2]=1
         } else {
@@ -305,7 +269,7 @@ done
     exit 0
     ;;
     "graph-pos")
-      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v w="$WIDTH" -v a="$AFTER_DATE" -v b="$BEFORE_DATE" '{
+      FINAL=$(echo "$FILTERED_LINES" | awk -F ';' -v w="$WIDTH" '{
           if (tickets[$2] == "") {
           if ($3 == "sell") {
             tickets[$2] = 0 - $6
@@ -382,6 +346,4 @@ done
       exit 0
       ;;
     esac
-
-
 exit 0
